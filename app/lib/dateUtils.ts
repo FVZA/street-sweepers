@@ -47,3 +47,19 @@ export function formatDateKey(date: Date): string {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 }
+
+// Get default date: today if before 1 PM Pacific, tomorrow otherwise
+export function getDefaultDate(): Date {
+  const now = new Date();
+  const pacificDate = getPacificDate(now);
+  const hour = pacificDate.getHours();
+
+  // If before 1 PM (13:00), return today, otherwise tomorrow
+  if (hour < 13) {
+    return pacificDate;
+  } else {
+    const tomorrow = new Date(pacificDate);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow;
+  }
+}

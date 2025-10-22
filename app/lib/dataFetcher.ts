@@ -55,6 +55,9 @@ export async function getStreetData() {
     streetsByDate[dateKey] = [];
   });
 
+  // All baseline streets (original coordinates, no offset)
+  const baselineStreets: StreetSegment[] = [];
+
   // Process each CSV row
   for (const row of parsed.data) {
     if (!row.Line || !row.CNN) continue;
@@ -65,7 +68,21 @@ export async function getStreetData() {
     // Filter out streets outside the 2-mile radius
     if (!isWithinRadius(coordinates)) continue;
 
-    // Apply offset based on block side
+    // Create baseline segment with original coordinates
+    const baselineSegment: StreetSegment = {
+      cnn: row.CNN,
+      corridor: row.Corridor,
+      limits: row.Limits,
+      side: row.BlockSide,
+      weekDay: row.WeekDay,
+      fromHour: parseInt(row.FromHour),
+      toHour: parseInt(row.ToHour),
+      coordinates: coordinates, // Original, no offset
+      timeDisplay: `${formatTime(parseInt(row.FromHour))} - ${formatTime(parseInt(row.ToHour))}`,
+    };
+    baselineStreets.push(baselineSegment);
+
+    // Apply offset based on block side for active streets
     const offsetCoordinates = offsetLineByBlockSide(coordinates, row.BlockSide);
 
     const segment: StreetSegment = {
@@ -91,6 +108,7 @@ export async function getStreetData() {
 
   return {
     streetsByDate,
+    baselineStreets,
     dates: dates.map(d => formatDateKey(d)),
   };
 }

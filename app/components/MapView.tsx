@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import dynamic from 'next/dynamic';
 import { StreetSegment } from '../lib/types';
-import DatePicker from './DatePicker';
+import DateSelector from './DateSelector';
+import { getDefaultDate, formatDateKey, getPacificDate } from '../lib/dateUtils';
 
 // Dynamically import StreetMap to avoid SSR issues with Leaflet
 const StreetMap = dynamic(() => import('./StreetMap'), {
@@ -13,22 +14,39 @@ const StreetMap = dynamic(() => import('./StreetMap'), {
 
 interface MapViewProps {
   streetsByDate: Record<string, StreetSegment[]>;
+  baselineStreets: StreetSegment[];
   dates: string[];
 }
 
-export default function MapView({ streetsByDate, dates }: MapViewProps) {
-  const [selectedDate, setSelectedDate] = useState<string>(dates[0] || '');
+export default function MapView({ streetsByDate, baselineStreets, dates }: MapViewProps) {
+  // Calculate today and tomorrow dates in Pacific time
+  const todayDate = useMemo(() => formatDateKey(getPacificDate()), []);
+  const tomorrowDate = useMemo(() => {
+    const tomorrow = getPacificDate();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return formatDateKey(tomorrow);
+  }, []);
+
+  // Determine default date based on time (before 1 PM = today, after = tomorrow)
+  const defaultDate = useMemo(() => {
+    const defaultDateObj = getDefaultDate();
+    return formatDateKey(defaultDateObj);
+  }, []);
+
+  const [selectedDate, setSelectedDate] = useState<string>(defaultDate);
 
   const streets = streetsByDate[selectedDate] || [];
 
   return (
     <div className="relative">
-      <DatePicker
+      <DateSelector
         selectedDate={selectedDate}
         availableDates={dates}
         onDateChange={setSelectedDate}
+        todayDate={todayDate}
+        tomorrowDate={tomorrowDate}
       />
-      <StreetMap streets={streets} color="#3b82f6" />
+      <StreetMap baselineStreets={baselineStreets} activeStreets={streets} />
     </div>
   );
 }
