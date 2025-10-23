@@ -1,7 +1,7 @@
 import * as turf from "@turf/turf";
 
 // Offset distance in meters (adjust for visibility)
-const OFFSET_DISTANCE = 6;
+const OFFSET_DISTANCE = 0;
 
 // Offset a line based on the block side
 // coordinates: array of [lat, lng] pairs (Leaflet format)
@@ -48,6 +48,64 @@ export function offsetLineByBlockSide(
   );
 
   return offsetCoords;
+}
+
+// Generate two polygon halves representing a split road corridor
+// Returns { leftPolygon, rightPolygon } where each is an array of [lat, lng] coords
+export function generateRoadCorridorPolygons(
+  coordinates: [number, number][],
+  halfWidth: number = 8 // Half width in meters (total road width = 8m)
+): { leftPolygon: [number, number][]; rightPolygon: [number, number][] } {
+  if (coordinates.length < 2) {
+    return { leftPolygon: coordinates, rightPolygon: coordinates };
+  }
+
+  // Convert Leaflet format [lat, lng] to GeoJSON format [lng, lat]
+  const geoJsonCoords = coordinates.map(([lat, lng]) => [lng, lat]);
+  const line = turf.lineString(geoJsonCoords);
+
+  // Create left and right edges by offsetting the centerline
+  // Note: In Turf.js, negative offset = left, positive offset = right (relative to line direction)
+  const leftEdge = turf.lineOffset(line, -halfWidth, { units: "meters" });
+  const rightEdge = turf.lineOffset(line, halfWidth, { units: "meters" });
+
+  // Convert to Leaflet format
+  const leftEdgeCoords = leftEdge.geometry.coordinates.map(
+    ([lng, lat]) => [lat, lng] as [number, number]
+  );
+  const rightEdgeCoords = rightEdge.geometry.coordinates.map(
+    ([lng, lat]) => [lat, lng] as [number, number]
+  );
+
+  // Create left polygon: leftEdge -> centerline (reversed)
+  const leftPolygon = [...leftEdgeCoords, ...coordinates.slice().reverse()];
+
+  // Create right polygon: centerline -> rightEdge (reversed)
+  const rightPolygon = [...coordinates, ...rightEdgeCoords.slice().reverse()];
+
+  return { leftPolygon, rightPolygon };
+}
+
+// Determine which polygon half represents the cleaned side
+// Returns 'left' or 'right' based on BlockSide and line bearing
+export function getCleanedSide(
+  coordinates: [number, number][],
+  blockSide: string
+): "left" | "right" {
+  if (coordinates.length < 2) return "left";
+
+  // Convert to GeoJSON and calculate bearing
+  const geoJsonCoords = coordinates.map(([lat, lng]) => [lng, lat]);
+  const start = turf.point(geoJsonCoords[0]);
+  const end = turf.point(geoJsonCoords[geoJsonCoords.length - 1]);
+  const bearing = turf.bearing(start, end);
+  const normalizedBearing = (bearing + 360) % 360;
+
+  // Use the same logic as getOffsetSign
+  // Positive offset = right side, Negative offset = left side
+  const offsetSign = getOffsetSign(normalizedBearing, blockSide);
+
+  return offsetSign >= 0 ? "right" : "left";
 }
 
 // Determine offset sign based on line bearing and block side
