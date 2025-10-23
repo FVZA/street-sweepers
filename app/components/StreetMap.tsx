@@ -27,9 +27,9 @@ export default function StreetMap({ baselineStreets, activeStreets }: StreetMapP
         <Polyline
           key={`baseline-${street.cnn}-${index}`}
           positions={street.coordinates}
-          color="#000000"
+          color="#C0C0C0"
           weight={4}
-          opacity={0.1}
+          opacity={1}
         />
       ))}
 

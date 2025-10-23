@@ -1,7 +1,7 @@
-import * as turf from '@turf/turf';
+import * as turf from "@turf/turf";
 
 // Offset distance in meters (adjust for visibility)
-const OFFSET_DISTANCE = 8;
+const OFFSET_DISTANCE = 6;
 
 // Offset a line based on the block side
 // coordinates: array of [lat, lng] pairs (Leaflet format)
@@ -10,7 +10,6 @@ export function offsetLineByBlockSide(
   coordinates: [number, number][],
   blockSide: string
 ): [number, number][] {
-
   if (coordinates.length < 2) return coordinates;
 
   // Convert Leaflet format [lat, lng] to GeoJSON format [lng, lat]
@@ -39,10 +38,14 @@ export function offsetLineByBlockSide(
   }
 
   // Apply offset using Turf
-  const offsetLine = turf.lineOffset(line, offsetDistance * offsetSign, { units: 'meters' });
+  const offsetLine = turf.lineOffset(line, offsetDistance * offsetSign, {
+    units: "meters",
+  });
 
   // Convert back to Leaflet format [lat, lng]
-  const offsetCoords = offsetLine.geometry.coordinates.map(([lng, lat]) => [lat, lng] as [number, number]);
+  const offsetCoords = offsetLine.geometry.coordinates.map(
+    ([lng, lat]) => [lat, lng] as [number, number]
+  );
 
   return offsetCoords;
 }
@@ -56,54 +59,54 @@ function getOffsetSign(bearing: number, blockSide: string): number {
   // bearing: 0 = North, 90 = East, 180 = South, 270 = West
 
   switch (blockSide) {
-    case 'East':
+    case "East":
       // If line goes North (0-45 or 315-360), East is on the right
       // If line goes South (135-225), East is on the left
-      if (bearing < 90 || bearing > 270) return 1;  // right
+      if (bearing < 90 || bearing > 270) return 1; // right
       if (bearing > 90 && bearing < 270) return -1; // left
       return 1;
 
-    case 'West':
+    case "West":
       // Opposite of East
       if (bearing < 90 || bearing > 270) return -1;
       if (bearing > 90 && bearing < 270) return 1;
       return -1;
 
-    case 'North':
+    case "North":
       // If line goes East (45-135), North is on the left
       // If line goes West (225-315), North is on the right
       if (bearing > 45 && bearing < 135) return -1;
       if (bearing > 225 && bearing < 315) return 1;
       return -1;
 
-    case 'South':
+    case "South":
       // Opposite of North
       if (bearing > 45 && bearing < 135) return 1;
       if (bearing > 225 && bearing < 315) return -1;
       return 1;
 
-    case 'NorthEast':
+    case "NorthEast":
       // Between North and East
       if (bearing < 135 || bearing > 315) return 1;
       return -1;
 
-    case 'NorthWest':
+    case "NorthWest":
       if (bearing > 45 && bearing < 225) return -1;
       return 1;
 
-    case 'SouthEast':
+    case "SouthEast":
       if (bearing > 45 && bearing < 225) return 1;
       return -1;
 
-    case 'SouthWest':
+    case "SouthWest":
       if (bearing < 135 || bearing > 315) return -1;
       return 1;
 
-    case 'L':
+    case "L":
       // Left side relative to line direction
       return -1;
 
-    case 'R':
+    case "R":
       // Right side relative to line direction
       return 1;
 
