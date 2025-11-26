@@ -1,8 +1,11 @@
-import { getStreetData } from './lib/dataFetcher';
+import { getAvailableDates } from './lib/dataFetcher';
 import MapView from './components/MapView';
 
-export default async function Home() {
-  const { streetsByDate, baselineStreets, dates } = await getStreetData();
+// Disable caching so dates are calculated fresh on each request
+export const dynamic = 'force-dynamic';
 
-  return <MapView streetsByDate={streetsByDate} baselineStreets={baselineStreets} dates={dates} />;
+export default async function Home() {
+  const dates = await getAvailableDates();
+
+  return <MapView dates={dates} />;
 }

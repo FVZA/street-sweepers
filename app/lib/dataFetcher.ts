@@ -1,33 +1,57 @@
 import fs from 'fs';
 import path from 'path';
 import Papa from 'papaparse';
-import * as turf from '@turf/turf';
 import { CSVRow, StreetSegment } from './types';
 import { parseLineString } from './linestring';
 import { getPacificDate, isCleanedOnDate, formatTime, formatDateKey } from './dateUtils';
-import { offsetLineByBlockSide } from './offsetLine';
 
-// Center point and radius for filtering
-const CENTER_POINT: [number, number] = [37.787916, -122.446413]; // [lat, lng]
-const RADIUS_MILES = 2;
+// Bounding box type
+export interface BoundingBox {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
 
-// Check if a line is within the radius of the center point
-function isWithinRadius(coordinates: [number, number][]): boolean {
-  const centerPoint = turf.point([CENTER_POINT[1], CENTER_POINT[0]]); // GeoJSON format [lng, lat]
-  const radiusKm = RADIUS_MILES * 1.60934; // Convert miles to kilometers
+// Check if a line intersects with a bounding box (with buffer)
+function isWithinBounds(coordinates: [number, number][], bounds: BoundingBox, buffer: number = 0.005): boolean {
+  // Add buffer to bounds (roughly 500m at SF latitude)
+  const bufferedBounds = {
+    north: bounds.north + buffer,
+    south: bounds.south - buffer,
+    east: bounds.east + buffer,
+    west: bounds.west - buffer,
+  };
 
-  // Check if any point on the line is within the radius
+  // Check if any point on the line is within the buffered bounds
   for (const [lat, lng] of coordinates) {
-    const point = turf.point([lng, lat]);
-    const distance = turf.distance(centerPoint, point, { units: 'kilometers' });
-    if (distance <= radiusKm) {
+    if (
+      lat >= bufferedBounds.south &&
+      lat <= bufferedBounds.north &&
+      lng >= bufferedBounds.west &&
+      lng <= bufferedBounds.east
+    ) {
       return true;
     }
   }
   return false;
 }
 
-export async function getStreetData() {
+export async function getAvailableDates(): Promise<string[]> {
+  const today = getPacificDate();
+
+  // Generate next 45 days
+  const dates: Date[] = [];
+  for (let i = 0; i < 45; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() + i);
+    dates.push(date);
+  }
+
+  return dates.map(d => formatDateKey(d));
+}
+
+export async function getStreetDataByBounds(bounds: BoundingBox) {
   // Read CSV file
   const csvPath = path.join(process.cwd(), 'Street_Sweeping_Schedule_20251017.csv');
   const csvContent = fs.readFileSync(csvPath, 'utf-8');
@@ -40,9 +64,9 @@ export async function getStreetData() {
 
   const today = getPacificDate();
 
-  // Generate next 30 days
+  // Generate next 45 days
   const dates: Date[] = [];
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 45; i++) {
     const date = new Date(today);
     date.setDate(today.getDate() + i);
     dates.push(date);
@@ -55,9 +79,6 @@ export async function getStreetData() {
     streetsByDate[dateKey] = [];
   });
 
-  // All baseline streets (original coordinates, no offset)
-  const baselineStreets: StreetSegment[] = [];
-
   // Process each CSV row
   for (const row of parsed.data) {
     if (!row.Line || !row.CNN) continue;
@@ -65,25 +86,8 @@ export async function getStreetData() {
     const coordinates = parseLineString(row.Line);
     if (coordinates.length === 0) continue;
 
-    // Filter out streets outside the 2-mile radius
-    if (!isWithinRadius(coordinates)) continue;
-
-    // Create baseline segment with original coordinates
-    const baselineSegment: StreetSegment = {
-      cnn: row.CNN,
-      corridor: row.Corridor,
-      limits: row.Limits,
-      side: row.BlockSide,
-      weekDay: row.WeekDay,
-      fromHour: parseInt(row.FromHour),
-      toHour: parseInt(row.ToHour),
-      coordinates: coordinates, // Original, no offset
-      timeDisplay: `${formatTime(parseInt(row.FromHour))} - ${formatTime(parseInt(row.ToHour))}`,
-    };
-    baselineStreets.push(baselineSegment);
-
-    // Apply offset based on block side for active streets
-    const offsetCoordinates = offsetLineByBlockSide(coordinates, row.BlockSide);
+    // Filter out streets outside the bounding box (with buffer)
+    if (!isWithinBounds(coordinates, bounds)) continue;
 
     const segment: StreetSegment = {
       cnn: row.CNN,
@@ -93,11 +97,11 @@ export async function getStreetData() {
       weekDay: row.WeekDay,
       fromHour: parseInt(row.FromHour),
       toHour: parseInt(row.ToHour),
-      coordinates: offsetCoordinates,
+      coordinates: coordinates,
       timeDisplay: `${formatTime(parseInt(row.FromHour))} - ${formatTime(parseInt(row.ToHour))}`,
     };
 
-    // Check which of the 30 days this street is cleaned
+    // Check which of the 45 days this street is cleaned
     for (const date of dates) {
       if (isCleanedOnDate(row, date)) {
         const dateKey = formatDateKey(date);
@@ -108,7 +112,6 @@ export async function getStreetData() {
 
   return {
     streetsByDate,
-    baselineStreets,
     dates: dates.map(d => formatDateKey(d)),
   };
 }
