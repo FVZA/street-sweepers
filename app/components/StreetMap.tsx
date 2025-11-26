@@ -74,8 +74,9 @@ export default function StreetMap({ activeStreets, onBoundsChange, loadedBounds 
   return (
     <MapContainer
       center={sfCenter}
-      zoom={16}
+      zoom={16.3}
       style={{ height: '100vh', width: '100%' }}
+      minZoom={15}
     >
       <MapEventHandler onBoundsChange={onBoundsChange} loadedBounds={loadedBounds} />
       <TileLayer

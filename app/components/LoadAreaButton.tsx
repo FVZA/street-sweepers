@@ -7,7 +7,7 @@ interface LoadAreaButtonProps {
 
 export default function LoadAreaButton({ onClick, isLoading }: LoadAreaButtonProps) {
   return (
-    <div className="absolute top-20 left-1/2 -translate-x-1/2 z-[1000]">
+    <div className="absolute top-24 left-1/2 -translate-x-1/2 z-[1000]">
       <button
         onClick={onClick}
         disabled={isLoading}
