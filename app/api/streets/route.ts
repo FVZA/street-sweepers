@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getStreetDataByBounds } from '@/app/lib/dataFetcher';
+import { getStreetSegmentsByBounds } from '@/app/lib/dataFetcher';
 
 export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
@@ -16,8 +16,7 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  const bounds = { north, south, east, west };
-  const data = await getStreetDataByBounds(bounds);
+  const segments = getStreetSegmentsByBounds({ north, south, east, west });
 
-  return NextResponse.json(data);
+  return NextResponse.json({ segments });
 }

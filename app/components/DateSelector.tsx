@@ -6,7 +6,6 @@ import 'react-datepicker/dist/react-datepicker.css';
 
 interface DateSelectorProps {
   selectedDate: string;
-  availableDates: string[];
   onDateChange: (date: string) => void;
   todayDate: string;
   tomorrowDate: string;
@@ -14,15 +13,11 @@ interface DateSelectorProps {
 
 export default function DateSelector({
   selectedDate,
-  availableDates,
   onDateChange,
   todayDate,
   tomorrowDate
 }: DateSelectorProps) {
   const [showCustomPicker, setShowCustomPicker] = useState(false);
-
-  const minDate = new Date(availableDates[0] + 'T00:00:00');
-  const maxDate = new Date(availableDates[availableDates.length - 1] + 'T00:00:00');
 
   const handleButtonClick = (date: string) => {
     setShowCustomPicker(false);
@@ -94,8 +89,6 @@ export default function DateSelector({
           <DatePicker
             selected={selectedDateObj}
             onChange={handleCustomDateChange}
-            minDate={minDate}
-            maxDate={maxDate}
             inline
           />
         </div>

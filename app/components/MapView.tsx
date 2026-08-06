@@ -1,12 +1,17 @@
 'use client';
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { StreetSegment } from '../lib/types';
 import { BoundingBox } from '../lib/dataFetcher';
 import DateSelector from './DateSelector';
-import LoadAreaButton from './LoadAreaButton';
-import { getDefaultDate, formatDateKey, getPacificDate } from '../lib/dateUtils';
+import {
+  getDefaultDate,
+  formatDateKey,
+  getPacificDate,
+  parseDateKey,
+  isSegmentActiveOnDate,
+} from '../lib/dateUtils';
 
 // Dynamically import StreetMap to avoid SSR issues with Leaflet
 const StreetMap = dynamic(() => import('./StreetMap'), {
@@ -14,11 +19,32 @@ const StreetMap = dynamic(() => import('./StreetMap'), {
   loading: () => <div className="h-screen w-full bg-gray-100 flex items-center justify-center">Loading map...</div>
 });
 
-interface MapViewProps {
-  dates: string[];
+// How far past the viewport to fetch, as a fraction of the viewport span.
+// Gives panning headroom so most small moves need no new request.
+const FETCH_PADDING = 0.5;
+
+function expandBounds(bounds: BoundingBox, fraction: number): BoundingBox {
+  const latPad = (bounds.north - bounds.south) * fraction;
+  const lngPad = (bounds.east - bounds.west) * fraction;
+  return {
+    north: bounds.north + latPad,
+    south: bounds.south - latPad,
+    east: bounds.east + lngPad,
+    west: bounds.west - lngPad,
+  };
 }
 
-export default function MapView({ dates }: MapViewProps) {
+function isCovered(viewport: BoundingBox, loadedRects: BoundingBox[]): boolean {
+  return loadedRects.some(
+    r =>
+      viewport.north <= r.north &&
+      viewport.south >= r.south &&
+      viewport.east <= r.east &&
+      viewport.west >= r.west
+  );
+}
+
+export default function MapView() {
   // Calculate today and tomorrow dates in Pacific time
   const todayDate = useMemo(() => formatDateKey(getPacificDate()), []);
   const tomorrowDate = useMemo(() => {
@@ -28,19 +54,20 @@ export default function MapView({ dates }: MapViewProps) {
   }, []);
 
   // Determine default date based on time (before 1 PM = today, after = tomorrow)
-  const defaultDate = useMemo(() => {
-    const defaultDateObj = getDefaultDate();
-    return formatDateKey(defaultDateObj);
-  }, []);
+  const defaultDate = useMemo(() => formatDateKey(getDefaultDate()), []);
 
   const [selectedDate, setSelectedDate] = useState<string>(defaultDate);
-  const [streetsByDate, setStreetsByDate] = useState<Record<string, StreetSegment[]>>({});
+  const [segmentsById, setSegmentsById] = useState<Record<string, StreetSegment>>({});
   const [isLoading, setIsLoading] = useState(false);
-  const [showLoadButton, setShowLoadButton] = useState(false);
-  const [currentBounds, setCurrentBounds] = useState<BoundingBox | null>(null);
-  const [loadedBounds, setLoadedBounds] = useState<BoundingBox | null>(null);
 
-  const fetchStreets = useCallback(async (bounds: BoundingBox) => {
+  const loadedRects = useRef<BoundingBox[]>([]);
+  const abortRef = useRef<AbortController | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  const fetchArea = useCallback(async (bounds: BoundingBox) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setIsLoading(true);
     try {
       const params = new URLSearchParams({
@@ -49,55 +76,61 @@ export default function MapView({ dates }: MapViewProps) {
         east: bounds.east.toString(),
         west: bounds.west.toString(),
       });
-      const response = await fetch(`/api/streets?${params}`);
+      const response = await fetch(`/api/streets?${params}`, { signal: controller.signal });
+      if (!response.ok) throw new Error(`API error ${response.status}`);
       const data = await response.json();
-      setStreetsByDate(data.streetsByDate);
-      setLoadedBounds(bounds);
-      setShowLoadButton(false);
+      setSegmentsById(prev => {
+        const next = { ...prev };
+        for (const segment of data.segments as StreetSegment[]) {
+          next[segment.id] = segment;
+        }
+        return next;
+      });
+      loadedRects.current.push(bounds);
     } catch (error) {
-      console.error('Failed to fetch streets:', error);
+      if (!controller.signal.aborted) {
+        console.error('Failed to fetch streets:', error);
+      }
     } finally {
-      setIsLoading(false);
+      if (abortRef.current === controller) {
+        setIsLoading(false);
+      }
     }
   }, []);
 
-  const handleBoundsChange = useCallback((bounds: BoundingBox, hasMovedSignificantly: boolean) => {
-    setCurrentBounds(bounds);
+  // Auto-load whenever the viewport leaves the already-loaded area
+  const handleBoundsChange = useCallback((viewport: BoundingBox) => {
+    clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      if (isCovered(viewport, loadedRects.current)) return;
+      fetchArea(expandBounds(viewport, FETCH_PADDING));
+    }, 200);
+  }, [fetchArea]);
 
-    // If we haven't loaded any data yet, auto-load
-    if (!loadedBounds) {
-      fetchStreets(bounds);
-      return;
-    }
-
-    // Show the load button if user has moved significantly
-    setShowLoadButton(hasMovedSignificantly);
-  }, [loadedBounds, fetchStreets]);
-
-  const handleLoadArea = useCallback(() => {
-    if (currentBounds) {
-      fetchStreets(currentBounds);
-    }
-  }, [currentBounds, fetchStreets]);
-
-  const streets = streetsByDate[selectedDate] || [];
+  const activeStreets = useMemo(() => {
+    const date = parseDateKey(selectedDate);
+    return Object.values(segmentsById).filter(segment =>
+      isSegmentActiveOnDate(segment, date)
+    );
+  }, [segmentsById, selectedDate]);
 
   return (
     <div className="relative">
       <DateSelector
         selectedDate={selectedDate}
-        availableDates={dates}
         onDateChange={setSelectedDate}
         todayDate={todayDate}
         tomorrowDate={tomorrowDate}
       />
-      {showLoadButton && (
-        <LoadAreaButton onClick={handleLoadArea} isLoading={isLoading} />
+      {isLoading && (
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-white/95 backdrop-blur-sm shadow-lg rounded-full px-4 py-2 text-sm text-gray-700 flex items-center gap-2">
+          <span className="inline-block h-3 w-3 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+          Loading streets…
+        </div>
       )}
       <StreetMap
-        activeStreets={streets}
+        activeStreets={activeStreets}
         onBoundsChange={handleBoundsChange}
-        loadedBounds={loadedBounds}
       />
     </div>
   );

@@ -1,63 +1,56 @@
 'use client';
 
-import { MapContainer, TileLayer, Polyline, Polygon, Popup, useMap, useMapEvents } from 'react-leaflet';
-import { useEffect, useRef } from 'react';
+import { MapContainer, TileLayer, Polygon, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { Fragment, useEffect } from 'react';
 import { StreetSegment } from '../lib/types';
 import { generateRoadCorridorPolygons, getCleanedSide } from '../lib/offsetLine';
 import { BoundingBox } from '../lib/dataFetcher';
 
 interface StreetMapProps {
   activeStreets: StreetSegment[];
-  onBoundsChange?: (bounds: BoundingBox, hasMovedSignificantly: boolean) => void;
-  loadedBounds?: BoundingBox | null;
+  onBoundsChange?: (bounds: BoundingBox) => void;
+}
+
+interface SegmentGeometry {
+  leftPolygon: [number, number][];
+  rightPolygon: [number, number][];
+  cleanedSide: 'left' | 'right';
+}
+
+// Segment geometry never changes, so cache the Turf computations across
+// renders — makes date switching and re-renders with many streets snappy.
+const geometryCache = new Map<string, SegmentGeometry>();
+
+function getSegmentGeometry(street: StreetSegment): SegmentGeometry {
+  let geometry = geometryCache.get(street.id);
+  if (!geometry) {
+    geometry = {
+      ...generateRoadCorridorPolygons(street.coordinates),
+      cleanedSide: getCleanedSide(street.coordinates, street.side),
+    };
+    geometryCache.set(street.id, geometry);
+  }
+  return geometry;
 }
 
 // Component to handle map events and report bounds
-function MapEventHandler({
-  onBoundsChange,
-  loadedBounds
-}: {
-  onBoundsChange?: (bounds: BoundingBox, hasMovedSignificantly: boolean) => void;
-  loadedBounds?: BoundingBox | null;
-}) {
+function MapEventHandler({ onBoundsChange }: { onBoundsChange?: (bounds: BoundingBox) => void }) {
   const map = useMap();
-  const initialBoundsReported = useRef(false);
-
-  // Check if current bounds are significantly outside the loaded bounds
-  const hasMovedSignificantly = (currentBounds: BoundingBox): boolean => {
-    if (!loadedBounds) return true;
-
-    // Check if any edge of the viewport is outside the loaded bounds (with small tolerance)
-    const tolerance = 0.001; // Small tolerance to avoid triggering on tiny movements
-    return (
-      currentBounds.north > loadedBounds.north - tolerance ||
-      currentBounds.south < loadedBounds.south + tolerance ||
-      currentBounds.east > loadedBounds.east - tolerance ||
-      currentBounds.west < loadedBounds.west + tolerance
-    );
-  };
 
   const reportBounds = () => {
     const bounds = map.getBounds();
-    const currentBounds: BoundingBox = {
+    onBoundsChange?.({
       north: bounds.getNorth(),
       south: bounds.getSouth(),
       east: bounds.getEast(),
       west: bounds.getWest(),
-    };
-    const movedSignificantly = hasMovedSignificantly(currentBounds);
-    onBoundsChange?.(currentBounds, movedSignificantly);
+    });
   };
 
   // Report initial bounds when map is ready
   useEffect(() => {
-    if (!initialBoundsReported.current) {
-      // Wait for map to be fully loaded
-      setTimeout(() => {
-        reportBounds();
-        initialBoundsReported.current = true;
-      }, 100);
-    }
+    reportBounds();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useMapEvents({
@@ -68,7 +61,7 @@ function MapEventHandler({
   return null;
 }
 
-export default function StreetMap({ activeStreets, onBoundsChange, loadedBounds }: StreetMapProps) {
+export default function StreetMap({ activeStreets, onBoundsChange }: StreetMapProps) {
   const sfCenter: [number, number] = [37.787916, -122.446413];
 
   return (
@@ -76,29 +69,39 @@ export default function StreetMap({ activeStreets, onBoundsChange, loadedBounds 
       center={sfCenter}
       zoom={16.3}
       style={{ height: '100vh', width: '100%' }}
-      minZoom={15}
+      minZoom={14}
+      preferCanvas
     >
-      <MapEventHandler onBoundsChange={onBoundsChange} loadedBounds={loadedBounds} />
+      <MapEventHandler onBoundsChange={onBoundsChange} />
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
       />
 
       {/* Active streets - rendered as split road corridors */}
-      {activeStreets.map((street, index) => {
-        // Generate the two polygon halves for this street
-        const { leftPolygon, rightPolygon } = generateRoadCorridorPolygons(street.coordinates);
+      {activeStreets.map(street => {
+        const { leftPolygon, rightPolygon, cleanedSide } = getSegmentGeometry(street);
 
-        // Determine which side is being cleaned
-        const cleanedSide = getCleanedSide(street.coordinates, street.side);
-
-        // Determine colors for each polygon
-        // Using more contrasting colors: darker blue for cleaned, medium gray for non-cleaned
+        // Darker blue for the cleaned side, medium gray for the other side
         const leftColor = cleanedSide === 'left' ? '#1d4ed8' : '#9ca3af';
         const rightColor = cleanedSide === 'right' ? '#1d4ed8' : '#9ca3af';
 
+        const popup = (
+          <Popup>
+            <div>
+              <strong>{street.corridor}</strong>
+              <br />
+              <strong style={{ color: '#2563eb' }}>{street.side} Side</strong>
+              <br />
+              {street.limits}
+              <br />
+              {street.timeDisplay}
+            </div>
+          </Popup>
+        );
+
         return (
-          <div key={`active-${street.cnn}-${index}`}>
+          <Fragment key={street.id}>
             {/* Left half of the road */}
             <Polygon
               positions={leftPolygon}
@@ -107,19 +110,7 @@ export default function StreetMap({ activeStreets, onBoundsChange, loadedBounds 
               weight={0}
               fillOpacity={0.8}
             >
-              {cleanedSide === 'left' && (
-                <Popup>
-                  <div>
-                    <strong>{street.corridor}</strong>
-                    <br />
-                    <strong style={{ color: '#2563eb' }}>{street.side} Side</strong>
-                    <br />
-                    {street.limits}
-                    <br />
-                    {street.timeDisplay}
-                  </div>
-                </Popup>
-              )}
+              {cleanedSide === 'left' && popup}
             </Polygon>
 
             {/* Right half of the road */}
@@ -130,21 +121,9 @@ export default function StreetMap({ activeStreets, onBoundsChange, loadedBounds 
               weight={0}
               fillOpacity={0.8}
             >
-              {cleanedSide === 'right' && (
-                <Popup>
-                  <div>
-                    <strong>{street.corridor}</strong>
-                    <br />
-                    <strong style={{ color: '#2563eb' }}>{street.side} Side</strong>
-                    <br />
-                    {street.limits}
-                    <br />
-                    {street.timeDisplay}
-                  </div>
-                </Popup>
-              )}
+              {cleanedSide === 'right' && popup}
             </Polygon>
-          </div>
+          </Fragment>
         );
       })}
     </MapContainer>
