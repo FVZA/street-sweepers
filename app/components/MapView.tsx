@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic';
 import { StreetSegment } from '../lib/types';
 import { BoundingBox } from '../lib/dataFetcher';
 import DateSelector from './DateSelector';
+import Legend from './Legend';
 import {
   getDefaultDate,
   formatDateKey,
@@ -16,7 +17,7 @@ import {
 // Dynamically import StreetMap to avoid SSR issues with Leaflet
 const StreetMap = dynamic(() => import('./StreetMap'), {
   ssr: false,
-  loading: () => <div className="h-screen w-full bg-gray-100 flex items-center justify-center">Loading map...</div>
+  loading: () => <div className="map-root w-full bg-gray-100 flex items-center justify-center text-gray-500">Loading map…</div>
 });
 
 // How far past the viewport to fetch, as a fraction of the viewport span.
@@ -114,6 +115,15 @@ export default function MapView() {
     );
   }, [segmentsById, selectedDate]);
 
+  // Block-level index so a tapped street can show both sides' schedules
+  const segmentsByCnn = useMemo(() => {
+    const index: Record<string, StreetSegment[]> = {};
+    for (const segment of Object.values(segmentsById)) {
+      (index[segment.cnn] ??= []).push(segment);
+    }
+    return index;
+  }, [segmentsById]);
+
   return (
     <div className="relative">
       <DateSelector
@@ -128,8 +138,10 @@ export default function MapView() {
           Loading streets…
         </div>
       )}
+      <Legend />
       <StreetMap
         activeStreets={activeStreets}
+        segmentsByCnn={segmentsByCnn}
         onBoundsChange={handleBoundsChange}
       />
     </div>

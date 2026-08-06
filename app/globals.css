@@ -22,12 +22,39 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+}
+
+/* Full-viewport map height; dvh tracks mobile browser chrome correctly */
+.map-root {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Leaflet popup restyling */
+.leaflet-popup-content-wrapper {
+  border-radius: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.16);
+  padding: 2px;
+}
+
+.leaflet-popup-content {
+  margin: 12px 14px;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
+  line-height: 1.45;
+}
+
+.leaflet-popup-close-button {
+  padding: 6px 6px 0 0 !important;
+}
+
+.leaflet-container {
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
 }
 
 /* React DatePicker Custom Styles */
 .react-datepicker {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
   border: none;
   box-shadow: none;
 }

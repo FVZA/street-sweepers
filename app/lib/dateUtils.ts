@@ -46,6 +46,69 @@ export function isSegmentActiveOnDate(
   return true;
 }
 
+const DAY_FULL: Record<string, string> = {
+  Mon: 'Monday',
+  Tues: 'Tuesday',
+  Wed: 'Wednesday',
+  Thu: 'Thursday',
+  Fri: 'Friday',
+  Sat: 'Saturday',
+  Sun: 'Sunday',
+};
+
+const DAY_SHORT: Record<string, string> = {
+  Mon: 'Mon',
+  Tues: 'Tue',
+  Wed: 'Wed',
+  Thu: 'Thu',
+  Fri: 'Fri',
+  Sat: 'Sat',
+  Sun: 'Sun',
+};
+
+const DAY_ORDER = ['Mon', 'Tues', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+const ORDINALS = ['1st', '2nd', '3rd', '4th', '5th'];
+
+// Week-flag prefix, e.g. "Every" or "1st & 3rd"
+export function describeWeeks(weeks: string): string {
+  if (weeks === '11111') return 'Every';
+  return [...weeks]
+    .map((flag, i) => (flag === '1' ? ORDINALS[i] : null))
+    .filter(Boolean)
+    .join(' & ');
+}
+
+// Human-readable rule for a set of weekdays sharing the same week flags,
+// e.g. "Every Tuesday", "1st & 3rd Friday", "2nd & 4th Mon, Wed & Fri"
+export function describeScheduleDays(weekDays: string[], weeks: string): string {
+  if (weekDays.includes('Holiday')) return 'Holidays only';
+  const sorted = [...weekDays].sort(
+    (a, b) => DAY_ORDER.indexOf(a) - DAY_ORDER.indexOf(b)
+  );
+  let dayText: string;
+  if (sorted.length === 1) {
+    dayText = DAY_FULL[sorted[0]] ?? sorted[0];
+  } else {
+    const shorts = sorted.map(d => DAY_SHORT[d] ?? d);
+    dayText = shorts.slice(0, -1).join(', ') + ' & ' + shorts[shorts.length - 1];
+  }
+  return `${describeWeeks(weeks)} ${dayText}`;
+}
+
+// Next date (from `from`, inclusive) this segment is swept, or null
+export function getNextSweep(
+  segment: Pick<StreetSegment, 'weekDay' | 'weeks' | 'sweptOnHolidays'>,
+  from: Date
+): Date | null {
+  const d = new Date(from);
+  for (let i = 0; i < 400; i++) {
+    if (isSegmentActiveOnDate(segment, d)) return new Date(d);
+    d.setDate(d.getDate() + 1);
+  }
+  return null;
+}
+
 // Format hour to AM/PM
 export function formatTime(hour: number): string {
   if (hour === 0) return '12AM';

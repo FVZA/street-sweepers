@@ -52,36 +52,36 @@ export default function DateSelector({
   // Convert selectedDate string to Date object for DatePicker
   const selectedDateObj = new Date(selectedDate + 'T00:00:00');
 
+  // Full readable date, e.g. "Thursday, August 6"
+  const fullDateLabel = selectedDateObj.toLocaleDateString('en-US', {
+    weekday: 'long',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const buttonClass = (active: boolean) =>
+    `px-4 sm:px-6 py-2 rounded-full font-medium text-sm sm:text-base whitespace-nowrap transition-all cursor-pointer ${
+      active ? 'bg-blue-600 text-white shadow-md' : 'text-gray-700 hover:bg-gray-100'
+    }`;
+
   return (
-    <div className="absolute top-6 left-1/2 -translate-x-1/2 z-[1000]">
-      <div className="bg-white/95 backdrop-blur-sm shadow-lg rounded-full px-2 py-2 flex items-center gap-2">
-        <button
-          onClick={() => handleButtonClick(todayDate)}
-          className={`px-6 py-2 rounded-full font-medium transition-all cursor-pointer ${isToday
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-gray-700 hover:bg-gray-100'
-            }`}
-        >
+    <div className="absolute top-4 sm:top-6 left-1/2 -translate-x-1/2 z-[1000]">
+      <div className="bg-white/95 backdrop-blur-sm shadow-lg rounded-full px-1.5 py-1.5 sm:px-2 sm:py-2 flex items-center gap-1 sm:gap-2">
+        <button onClick={() => handleButtonClick(todayDate)} className={buttonClass(isToday)}>
           Today
         </button>
-        <button
-          onClick={() => handleButtonClick(tomorrowDate)}
-          className={`px-6 py-2 rounded-full font-medium transition-all cursor-pointer ${isTomorrow
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-gray-700 hover:bg-gray-100'
-            }`}
-        >
+        <button onClick={() => handleButtonClick(tomorrowDate)} className={buttonClass(isTomorrow)}>
           Tomorrow
         </button>
-        <button
-          onClick={handleCustomClick}
-          className={`px-6 py-2 rounded-full font-medium transition-all cursor-pointer ${isCustom
-              ? 'bg-blue-600 text-white shadow-md'
-              : 'text-gray-700 hover:bg-gray-100'
-            }`}
-        >
+        <button onClick={handleCustomClick} className={buttonClass(isCustom)}>
           {isCustom ? formatCustomDate(selectedDate) : 'Custom'}
         </button>
+      </div>
+
+      <div className="mt-2 text-center">
+        <span className="bg-white/90 backdrop-blur-sm shadow rounded-full px-3 py-1 text-xs text-gray-600">
+          {fullDateLabel}
+        </span>
       </div>
 
       {showCustomPicker && (
