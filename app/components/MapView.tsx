@@ -133,9 +133,11 @@ export default function MapView() {
         tomorrowDate={tomorrowDate}
       />
       {isLoading && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000] bg-white/95 backdrop-blur-sm shadow-lg rounded-full px-4 py-2 text-sm text-gray-700 flex items-center gap-2">
-          <span className="inline-block h-3 w-3 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
-          Loading streets…
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-[1000]">
+          <div className="pill-in bg-white/95 backdrop-blur-sm shadow-lg ring-1 ring-black/5 rounded-full px-4 py-2 text-sm text-gray-700 flex items-center gap-2">
+            <span className="inline-block h-3 w-3 rounded-full border-2 border-blue-600 border-t-transparent animate-spin" />
+            Loading streets…
+          </div>
         </div>
       )}
       <Legend />

@@ -2,7 +2,7 @@
 
 export default function Legend() {
   return (
-    <div className="absolute bottom-6 left-3 z-[1000] bg-white/95 backdrop-blur-sm shadow-lg rounded-xl px-3.5 py-2.5 select-none">
+    <div className="absolute bottom-6 left-3 z-[1000] bg-white/95 backdrop-blur-sm shadow-lg ring-1 ring-black/5 rounded-xl px-3.5 py-2.5 select-none">
       <div className="flex items-center gap-1.5 text-[13px] font-semibold text-gray-900 mb-1.5">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/icon-192.png" alt="" className="h-4 w-4 rounded" />

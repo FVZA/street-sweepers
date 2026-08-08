@@ -31,6 +31,45 @@ body {
   height: 100dvh;
 }
 
+/* Date-bar label slide when the selected date changes */
+@keyframes date-slide-fwd {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes date-slide-back {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: none; }
+}
+
+.date-label-fwd {
+  animation: date-slide-fwd 0.25s ease-out;
+}
+
+.date-label-back {
+  animation: date-slide-back 0.25s ease-out;
+}
+
+/* Floating cards (calendar popover, loading pill) popping into view */
+@keyframes pop-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.datepicker-pop {
+  animation: pop-in 0.18s ease-out;
+  transform-origin: top center;
+}
+
+@keyframes pop-in-up {
+  from { opacity: 0; transform: translateY(6px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+
+.pill-in {
+  animation: pop-in-up 0.2s ease-out;
+}
+
 /* Leaflet popup restyling */
 .leaflet-popup-content-wrapper {
   border-radius: 14px;
