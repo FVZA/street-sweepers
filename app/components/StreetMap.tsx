@@ -1,7 +1,7 @@
 'use client';
 
-import { MapContainer, TileLayer, Pane, Polygon, Popup, useMap, useMapEvents } from 'react-leaflet';
-import { Fragment, useEffect } from 'react';
+import { MapContainer, TileLayer, Pane, Polygon, Polyline, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { Fragment, useEffect, useState } from 'react';
 import { StreetSegment } from '../lib/types';
 import { generateRoadCorridorPolygons, getCleanedSide } from '../lib/offsetLine';
 import { BoundingBox } from '../lib/dataFetcher';
@@ -23,6 +23,13 @@ interface SegmentGeometry {
 const SWEPT_COLOR = '#2563eb';
 const OTHER_COLOR = '#94a3b8';
 
+const INITIAL_ZOOM = 16.3;
+
+// Below this zoom each 8m corridor half is under ~3px on screen and the
+// polygons degrade into aliased slivers — render pixel-weight centerlines
+// instead (which side is being swept isn't discernible at that scale anyway)
+const CORRIDOR_MIN_ZOOM = 15.5;
+
 // Segment geometry never changes, so cache the Turf computations across
 // renders — makes date switching and re-renders with many streets snappy.
 const geometryCache = new Map<string, SegmentGeometry>();
@@ -39,11 +46,17 @@ function getSegmentGeometry(street: StreetSegment): SegmentGeometry {
   return geometry;
 }
 
-// Component to handle map events and report bounds
-function MapEventHandler({ onBoundsChange }: { onBoundsChange?: (bounds: BoundingBox) => void }) {
+// Component to handle map events and report bounds + zoom
+function MapEventHandler({
+  onBoundsChange,
+  onZoomChange,
+}: {
+  onBoundsChange?: (bounds: BoundingBox) => void;
+  onZoomChange?: (zoom: number) => void;
+}) {
   const map = useMap();
 
-  const reportBounds = () => {
+  const report = () => {
     const bounds = map.getBounds();
     onBoundsChange?.({
       north: bounds.getNorth(),
@@ -51,17 +64,18 @@ function MapEventHandler({ onBoundsChange }: { onBoundsChange?: (bounds: Boundin
       east: bounds.getEast(),
       west: bounds.getWest(),
     });
+    onZoomChange?.(map.getZoom());
   };
 
   // Report initial bounds when map is ready
   useEffect(() => {
-    reportBounds();
+    report();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useMapEvents({
-    moveend: reportBounds,
-    zoomend: reportBounds,
+    moveend: report,
+    zoomend: report,
   });
 
   return null;
@@ -69,17 +83,29 @@ function MapEventHandler({ onBoundsChange }: { onBoundsChange?: (bounds: Boundin
 
 export default function StreetMap({ activeStreets, segmentsByCnn, onBoundsChange }: StreetMapProps) {
   const sfCenter: [number, number] = [37.787916, -122.446413];
+  const [zoom, setZoom] = useState(INITIAL_ZOOM);
+  const detailed = zoom >= CORRIDOR_MIN_ZOOM;
+
+  // Zoomed out, both sides of a block draw the same centerline — render
+  // each block once
+  const lowZoomStreets = (() => {
+    if (detailed) return activeStreets;
+    const seen = new Set<string>();
+    return activeStreets.filter(street =>
+      seen.has(street.cnn) ? false : (seen.add(street.cnn), true)
+    );
+  })();
 
   return (
     <MapContainer
       center={sfCenter}
-      zoom={16.3}
+      zoom={INITIAL_ZOOM}
       className="map-root w-full"
       minZoom={14}
       preferCanvas
       zoomControl={false}
     >
-      <MapEventHandler onBoundsChange={onBoundsChange} />
+      <MapEventHandler onBoundsChange={onBoundsChange} onZoomChange={setZoom} />
       {/* Base tiles without labels; labels render in their own pane above
           the street polygons so highlights never cover street names */}
       <TileLayer
@@ -93,13 +119,9 @@ export default function StreetMap({ activeStreets, segmentsByCnn, onBoundsChange
         />
       </Pane>
 
-      {/* Active streets - rendered as split road corridors */}
-      {activeStreets.map(street => {
-        const { leftPolygon, rightPolygon, cleanedSide } = getSegmentGeometry(street);
-
-        const leftColor = cleanedSide === 'left' ? SWEPT_COLOR : OTHER_COLOR;
-        const rightColor = cleanedSide === 'right' ? SWEPT_COLOR : OTHER_COLOR;
-
+      {/* Active streets: split road corridors when zoomed in, pixel-weight
+          centerlines when zoomed out */}
+      {lowZoomStreets.map(street => {
         const popup = (
           <Popup maxWidth={280}>
             <SchedulePopup
@@ -108,6 +130,25 @@ export default function StreetMap({ activeStreets, segmentsByCnn, onBoundsChange
             />
           </Popup>
         );
+
+        if (!detailed) {
+          return (
+            <Polyline
+              key={street.id}
+              positions={street.coordinates}
+              color={SWEPT_COLOR}
+              weight={zoom >= 15 ? 3 : 2.5}
+              opacity={0.8}
+            >
+              {popup}
+            </Polyline>
+          );
+        }
+
+        const { leftPolygon, rightPolygon, cleanedSide } = getSegmentGeometry(street);
+
+        const leftColor = cleanedSide === 'left' ? SWEPT_COLOR : OTHER_COLOR;
+        const rightColor = cleanedSide === 'right' ? SWEPT_COLOR : OTHER_COLOR;
 
         return (
           <Fragment key={street.id}>

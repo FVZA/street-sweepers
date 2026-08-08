@@ -6,12 +6,22 @@ export function generateRoadCorridorPolygons(
   coordinates: [number, number][],
   halfWidth: number = 8 // Half width in meters (total road width = 8m)
 ): { leftPolygon: [number, number][]; rightPolygon: [number, number][] } {
-  if (coordinates.length < 2) {
-    return { leftPolygon: coordinates, rightPolygon: coordinates };
+  // Zero-length segments make turf.lineOffset emit NaN vertices, which crash
+  // Leaflet ("Invalid LatLng"). Coordinate rounding can create consecutive
+  // duplicates, so drop them before offsetting.
+  const cleaned = coordinates.filter(
+    (point, i) =>
+      i === 0 ||
+      point[0] !== coordinates[i - 1][0] ||
+      point[1] !== coordinates[i - 1][1]
+  );
+
+  if (cleaned.length < 2) {
+    return { leftPolygon: cleaned, rightPolygon: cleaned };
   }
 
   // Convert Leaflet format [lat, lng] to GeoJSON format [lng, lat]
-  const geoJsonCoords = coordinates.map(([lat, lng]) => [lng, lat]);
+  const geoJsonCoords = cleaned.map(([lat, lng]) => [lng, lat]);
   const line = turf.lineString(geoJsonCoords);
 
   // Create left and right edges by offsetting the centerline
@@ -19,19 +29,22 @@ export function generateRoadCorridorPolygons(
   const leftEdge = turf.lineOffset(line, -halfWidth, { units: "meters" });
   const rightEdge = turf.lineOffset(line, halfWidth, { units: "meters" });
 
-  // Convert to Leaflet format
-  const leftEdgeCoords = leftEdge.geometry.coordinates.map(
-    ([lng, lat]) => [lat, lng] as [number, number]
-  );
-  const rightEdgeCoords = rightEdge.geometry.coordinates.map(
-    ([lng, lat]) => [lat, lng] as [number, number]
-  );
+  // Convert to Leaflet format; last-resort guard against any remaining
+  // non-finite offset vertices
+  const isFinitePoint = (p: [number, number]) =>
+    Number.isFinite(p[0]) && Number.isFinite(p[1]);
+  const leftEdgeCoords = leftEdge.geometry.coordinates
+    .map(([lng, lat]) => [lat, lng] as [number, number])
+    .filter(isFinitePoint);
+  const rightEdgeCoords = rightEdge.geometry.coordinates
+    .map(([lng, lat]) => [lat, lng] as [number, number])
+    .filter(isFinitePoint);
 
   // Create left polygon: leftEdge -> centerline (reversed)
-  const leftPolygon = [...leftEdgeCoords, ...coordinates.slice().reverse()];
+  const leftPolygon = [...leftEdgeCoords, ...cleaned.slice().reverse()];
 
   // Create right polygon: centerline -> rightEdge (reversed)
-  const rightPolygon = [...coordinates, ...rightEdgeCoords.slice().reverse()];
+  const rightPolygon = [...cleaned, ...rightEdgeCoords.slice().reverse()];
 
   return { leftPolygon, rightPolygon };
 }
