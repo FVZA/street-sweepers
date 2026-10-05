@@ -48,7 +48,7 @@ Note: There are no test scripts currently configured in this project.
 ### Leaflet Integration
 
 - **SSR Handling**: StreetMap is dynamically imported with `ssr: false` in MapView.tsx
-- **Tile Layer**: CARTO light basemap
+- **Basemap**: OpenFreeMap Positron vector tiles (keyless) rendered via MapLibre GL + `@maplibre/maplibre-gl-leaflet` (`VectorBasemap.tsx`). The style is split into a base layer and a symbol-only layer in a `labels` pane above the street polygons. `maplibre-gl` is pinned to v5 — v6 loads its worker as a separate module file the Next bundle doesn't ship. (CARTO now requires an API key; Esri gray canvas tops out at z16 and looks blurry.)
 - **Zoom**: default 16.3, minZoom 14, `preferCanvas` for polygon performance
 
 ## Important Data Structures
@@ -74,6 +74,7 @@ Note: There are no test scripts currently configured in this project.
 
 - **@turf/turf**: line offsetting for road corridor polygons
 - **leaflet + react-leaflet**: map rendering
+- **maplibre-gl (v5) + @maplibre/maplibre-gl-leaflet**: vector basemap
 - **papaparse**: CSV parsing
 - **react-datepicker**: custom date selection
 - **next**: v15 App Router; **tailwindcss**: v4
