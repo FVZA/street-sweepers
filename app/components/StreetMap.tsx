@@ -106,16 +106,20 @@ export default function StreetMap({ activeStreets, segmentsByCnn, onBoundsChange
       zoomControl={false}
     >
       <MapEventHandler onBoundsChange={onBoundsChange} onZoomChange={setZoom} />
-      {/* Base tiles without labels; labels render in their own pane above
-          the street polygons so highlights never cover street names */}
+      {/* Esri light gray canvas (keyless). Street labels are baked into the
+          base at street zooms; the Reference layer adds labels at lower zooms. */}
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+        attribution='Tiles &copy; <a href="https://www.esri.com">Esri</a> &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
+        maxNativeZoom={16}
+        maxZoom={20}
       />
       <Pane name="labels" style={{ zIndex: 650, pointerEvents: 'none' }}>
         <TileLayer
-          url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}.png"
+          url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
           pane="labels"
+          maxNativeZoom={16}
+          maxZoom={20}
         />
       </Pane>
 
