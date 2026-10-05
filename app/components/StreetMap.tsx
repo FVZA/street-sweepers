@@ -1,11 +1,12 @@
 'use client';
 
-import { MapContainer, TileLayer, Pane, Polygon, Polyline, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, Pane, Polygon, Polyline, Popup, useMap, useMapEvents } from 'react-leaflet';
 import { Fragment, useEffect, useState } from 'react';
 import { StreetSegment } from '../lib/types';
 import { generateRoadCorridorPolygons, getCleanedSide } from '../lib/offsetLine';
 import { BoundingBox } from '../lib/dataFetcher';
 import SchedulePopup from './SchedulePopup';
+import VectorBasemap from './VectorBasemap';
 
 interface StreetMapProps {
   activeStreets: StreetSegment[];
@@ -106,22 +107,10 @@ export default function StreetMap({ activeStreets, segmentsByCnn, onBoundsChange
       zoomControl={false}
     >
       <MapEventHandler onBoundsChange={onBoundsChange} onZoomChange={setZoom} />
-      {/* Esri light gray canvas (keyless). Street labels are baked into the
-          base at street zooms; the Reference layer adds labels at lower zooms. */}
-      <TileLayer
-        url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
-        attribution='Tiles &copy; <a href="https://www.esri.com">Esri</a> &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors'
-        maxNativeZoom={16}
-        maxZoom={20}
-      />
-      <Pane name="labels" style={{ zIndex: 650, pointerEvents: 'none' }}>
-        <TileLayer
-          url="https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}"
-          pane="labels"
-          maxNativeZoom={16}
-          maxZoom={20}
-        />
-      </Pane>
+      {/* Vector basemap; its labels render in their own pane above the
+          street polygons so highlights never cover street names */}
+      <Pane name="labels" style={{ zIndex: 650, pointerEvents: 'none' }} />
+      <VectorBasemap labelsPane="labels" />
 
       {/* Active streets: split road corridors when zoomed in, pixel-weight
           centerlines when zoomed out */}
